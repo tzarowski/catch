@@ -39,6 +39,11 @@ public:
 
 //------------------------
 
+//color pallette setup
+SDL_Color Red = { 255,0,0,255 };
+SDL_Color Green = { 0,255,0,255 };
+SDL_Color Blue = { 0,0,255,255 };
+SDL_Color Black = { 0,0,0,0 };
 bool init();
 
 void close();
@@ -47,6 +52,8 @@ void close();
 SDL_Window* gWindow = NULL;
 
 SDL_Renderer* gRenderer = NULL;
+
+TTF_Font* Times = NULL;
 
 bool init() {
 	bool success = true;
@@ -73,6 +80,13 @@ bool init() {
 					printf("Text renderer could not be created!");
 					success = false;
 				}
+				else {
+					Times = TTF_OpenFont("times.ttf", 50);
+					if (Times == NULL) {
+						printf("Font could not be loaded");
+						success = false;
+					}
+				}
 			}
 		}
 	}
@@ -82,7 +96,6 @@ bool init() {
 void close() {
 	SDL_DestroyWindow(gWindow);
 	gWindow = NULL;
-
 	SDL_Quit();
 }
 
@@ -98,8 +111,32 @@ bool sameColor(SDL_Color color1, SDL_Color color2) {
 	}
 }
 
+void displayScore(int score) {
+	SDL_Rect scoreRect = { 0,0,50,25 };
+	SDL_Surface* scoreSurface = TTF_RenderText_Solid(Times, ("Score: " + std::to_string(score)).c_str(), Black);
+	SDL_Texture* scoreTexture = SDL_CreateTextureFromSurface(gRenderer, scoreSurface);
+	SDL_RenderCopy(gRenderer, scoreTexture, NULL, &scoreRect);
+	SDL_FreeSurface(scoreSurface);
+	SDL_DestroyTexture(scoreTexture);
+}
+
+void displayLives(int lives) {
+	SDL_Rect livesRect = { 0,50,50,25 };
+	SDL_Surface* livesSurface = TTF_RenderText_Solid(Times, ("Lives: " + std::to_string(lives)).c_str(), Black);
+	SDL_Texture* livesTexture = SDL_CreateTextureFromSurface(gRenderer, livesSurface);
+	SDL_RenderCopy(gRenderer, livesTexture, NULL, &livesRect);
+	SDL_FreeSurface(livesSurface);
+	SDL_DestroyTexture(livesTexture);
+}
+
+Target resetTarget(Target target) {
+	target.targetBox.y = 0;
+	target.targetBox.x = rand() % (SCREEN_WIDTH - TARGET_WIDTH);
+	target.targetSpeed = (rand() % 3) + 2;
+	target.setRandomColor();
+	return target;
+}
 void playGame() {
-	//secondary main function
 
 	bool quit = false;
 
@@ -111,19 +148,9 @@ void playGame() {
 	int playerWidth = SCREEN_WIDTH / 5;
 	int playerHeight = SCREEN_HEIGHT / 20;
 	int playerSpeed = 10;
-
-	//score display setup
-	TTF_Font* Times = TTF_OpenFont("times.ttf", 50);
-	SDL_Rect scoreRect = { 0,0,50,25 };
-	SDL_Rect livesRect = { 0,50,50,25 };
-	SDL_Color Black = { 0,0,0,0 };
 	int score = 0;
 	int lives = 3;
 
-	//color pallette setup
-	SDL_Color Red = { 255,0,0,255 };
-	SDL_Color Green = { 0,255,0,255 };
-	SDL_Color Blue = { 0,0,255,255 };
 
 	int frameNumber = 0;
 
@@ -165,19 +192,8 @@ void playGame() {
 		SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 		SDL_RenderClear(gRenderer);
 
-		//display score
-		SDL_Surface* scoreSurface = TTF_RenderText_Solid(Times, ("Score: " + std::to_string(score)).c_str(), Black);
-		SDL_Texture* scoreTexture = SDL_CreateTextureFromSurface(gRenderer, scoreSurface);
-		SDL_RenderCopy(gRenderer, scoreTexture, NULL, &scoreRect);
-		SDL_FreeSurface(scoreSurface);
-		SDL_DestroyTexture(scoreTexture);
-
-		//display lives
-		SDL_Surface* livesSurface = TTF_RenderText_Solid(Times, ("Lives: " + std::to_string(lives)).c_str(), Black);
-		SDL_Texture* livesTexture = SDL_CreateTextureFromSurface(gRenderer, livesSurface);
-		SDL_RenderCopy(gRenderer, livesTexture, NULL, &livesRect);
-		SDL_FreeSurface(livesSurface);
-		SDL_DestroyTexture(livesTexture);
+		displayScore(score);
+		displayLives(lives);
 
 		//draw and display player
 		SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
@@ -193,18 +209,15 @@ void playGame() {
 			if (frameNumber % 100 == 0) {
 				currentTargets[i].targetBox.y += currentTargets[i].targetSpeed;
 				if (currentTargets[i].targetBox.y > playerY) {
-					currentTargets[i].targetBox.y = 0;
-					currentTargets[i].targetBox.x = rand() % (SCREEN_WIDTH - TARGET_WIDTH);
-					currentTargets[i].targetSpeed = (rand() % 3) + 2;
-					currentTargets[i].setRandomColor();
+					currentTargets[i] = resetTarget(currentTargets[i]);
+					//currentTargets[i].setRandomColor();
 				}
 			}
 
 			//check collision with player
 			if (SDL_HasIntersection(&currentTargets[i].targetBox, &playerRect)) {
-				currentTargets[i].targetBox.y = 0;
-				currentTargets[i].targetBox.x = rand() % (SCREEN_WIDTH - TARGET_WIDTH);
-				currentTargets[i].targetSpeed = (rand() % 5) + 1;
+
+				currentTargets[i] = resetTarget(currentTargets[i]);
 
 				//check color
 				if (sameColor(currentTargetColor, Blue)) {
@@ -214,20 +227,20 @@ void playGame() {
 					if (score % 10 == 0) {
 						currentTargets[i].setColor(Green);
 					}
-					else {
-						currentTargets[i].setRandomColor();
-					}
+					//else {
+						//currentTargets[i].setRandomColor();
+					//}
 
 				}
 
 				if (sameColor(currentTargetColor, Red)) {
 					lives--;
-					currentTargets[i].setRandomColor();
+					//currentTargets[i].setRandomColor();
 				}
 
 				if (sameColor(currentTargetColor, Green)) {
 					lives++;
-					currentTargets[i].setRandomColor();
+					//currentTargets[i].setRandomColor();
 				}
 			}
 
