@@ -21,7 +21,7 @@ public:
 
 public:
 	Target(int _xPos, int speed, SDL_Color color) {
-		targetBox = { _xPos, 0, TARGET_WIDTH, TARGET_HEIGHT };
+		targetBox = { _xPos, 50, TARGET_WIDTH, TARGET_HEIGHT };
 		targetSpeed = speed;
 		targetColor = color;
 	}
@@ -34,16 +34,63 @@ public:
 		SDL_Color possibleColors[] = { { 255,0,0,255 },{ 0,0,255,255 } };
 		targetColor = possibleColors[rand() % 2];
 	}
+
+	void resetTarget() {
+		targetBox.y = 50;
+		targetBox.x = rand() % (SCREEN_WIDTH - TARGET_WIDTH);
+		targetSpeed = (rand() % 3) + 2;
+		setRandomColor();
+	}
+
+	void moveTarget(int bottom) {
+		targetBox.y += targetSpeed;
+		if (targetBox.y > bottom) {
+			resetTarget();
+		}
+
+	}
 };
 
 
 //------------------------
+
+class Player {
+public:
+	SDL_Rect playerBox;
+	int playerSpeed;
+	SDL_Color playerColor;
+
+public:
+	Player(int _xPos, int _yPos, int _width, int _height, int speed, SDL_Color color) {
+		playerBox = { _xPos, _yPos, _width, _height };
+		playerSpeed = speed;
+		playerColor = color;
+	}
+
+	void moveRight() {
+		playerBox.x += playerSpeed;
+		if (playerBox.x + playerBox.w > SCREEN_WIDTH) {
+			playerBox.x -= playerSpeed;
+		}
+	}
+
+	void moveLeft() {
+		playerBox.x -= playerSpeed;
+		if (playerBox.x < 0) {
+			playerBox.x += playerSpeed;
+		}
+	}
+};
+
+//---------------------------
 
 //color pallette setup
 SDL_Color Red = { 255,0,0,255 };
 SDL_Color Green = { 0,255,0,255 };
 SDL_Color Blue = { 0,0,255,255 };
 SDL_Color Black = { 0,0,0,0 };
+int score = 0;
+int highScore = 0;
 bool init();
 
 void close();
@@ -63,7 +110,7 @@ bool init() {
 		success = false;
 	}
 	else {
-		gWindow = SDL_CreateWindow("Pong", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+		gWindow = SDL_CreateWindow("Catch", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 		if (gWindow == NULL) {
 			printf("Window could not be created! Error: %s\n", SDL_GetError());
 			success = false;
@@ -81,7 +128,7 @@ bool init() {
 					success = false;
 				}
 				else {
-					Times = TTF_OpenFont("times.ttf", 50);
+					Times = TTF_OpenFont("times.ttf", 60);
 					if (Times == NULL) {
 						printf("Font could not be loaded");
 						success = false;
@@ -97,6 +144,7 @@ void close() {
 	SDL_DestroyWindow(gWindow);
 	gWindow = NULL;
 	SDL_Quit();
+	TTF_Quit();
 }
 
 bool sameColor(SDL_Color color1, SDL_Color color2) {
@@ -112,8 +160,8 @@ bool sameColor(SDL_Color color1, SDL_Color color2) {
 }
 
 void displayScore(int score) {
-	SDL_Rect scoreRect = { 0,0,50,25 };
-	SDL_Surface* scoreSurface = TTF_RenderText_Solid(Times, ("Score: " + std::to_string(score)).c_str(), Black);
+	SDL_Rect scoreRect = { 0,0,150,50 };
+	SDL_Surface* scoreSurface = TTF_RenderText_Blended(Times, ("Score: " + std::to_string(score)).c_str(), Black);
 	SDL_Texture* scoreTexture = SDL_CreateTextureFromSurface(gRenderer, scoreSurface);
 	SDL_RenderCopy(gRenderer, scoreTexture, NULL, &scoreRect);
 	SDL_FreeSurface(scoreSurface);
@@ -121,24 +169,54 @@ void displayScore(int score) {
 }
 
 void displayLives(int lives) {
-	SDL_Rect livesRect = { 0,50,50,25 };
-	SDL_Surface* livesSurface = TTF_RenderText_Solid(Times, ("Lives: " + std::to_string(lives)).c_str(), Black);
+	SDL_Rect livesRect = { 170,0,150,50 };
+	SDL_Surface* livesSurface = TTF_RenderText_Blended(Times, ("Lives: " + std::to_string(lives)).c_str(), Black);
 	SDL_Texture* livesTexture = SDL_CreateTextureFromSurface(gRenderer, livesSurface);
 	SDL_RenderCopy(gRenderer, livesTexture, NULL, &livesRect);
 	SDL_FreeSurface(livesSurface);
 	SDL_DestroyTexture(livesTexture);
 }
 
-Target resetTarget(Target target) {
-	target.targetBox.y = 0;
-	target.targetBox.x = rand() % (SCREEN_WIDTH - TARGET_WIDTH);
-	target.targetSpeed = (rand() % 3) + 2;
-	target.setRandomColor();
-	return target;
+void displayMenuText(int highScore) {
+	SDL_Rect menuRect = { 70,215,500,50 };
+	SDL_Surface* menuSurface = TTF_RenderText_Blended(Times, ("Press enter to play, high score: " + std::to_string(highScore)).c_str(), Black);
+	SDL_Texture* menuTexture = SDL_CreateTextureFromSurface(gRenderer, menuSurface);
+	SDL_RenderCopy(gRenderer, menuTexture, NULL, &menuRect);
+	SDL_FreeSurface(menuSurface);
+	SDL_DestroyTexture(menuTexture);
 }
-void playGame() {
 
+void displayQuitText() {
+	SDL_Rect quitRect = { 340, 0, 300, 50 };
+	SDL_Surface* quitSurface = TTF_RenderText_Blended(Times, "Press BACKSPACE to quit", Black);
+	SDL_Texture* quitTexture = SDL_CreateTextureFromSurface(gRenderer, quitSurface);
+	SDL_RenderCopy(gRenderer, quitTexture, NULL, &quitRect);
+	SDL_FreeSurface(quitSurface);
+	SDL_DestroyTexture(quitTexture);
+}
+
+void displayScoreSplashScreen(int score) {
+	SDL_Rect splashRect = { 220, 215, 200, 50 };
+	SDL_Surface* splashSurface = TTF_RenderText_Blended(Times, ("Final score: " + std::to_string(score)).c_str(), Black);
+	SDL_Texture* splashTexture = SDL_CreateTextureFromSurface(gRenderer, splashSurface);
+	SDL_RenderCopy(gRenderer, splashTexture, NULL, &splashRect);
+	SDL_FreeSurface(splashSurface);
+	SDL_DestroyTexture(splashTexture);
+}
+
+void displayHUD(int score, int lives) {
+	displayScore(score);
+	displayLives(lives);
+	displayQuitText();
+}
+
+int playGame() {
+	score = 0;
 	bool quit = false;
+
+	//softQuit is a "Quit to Menu", hardQuit is a "Quit to Desktop"
+	bool softQuit = false;
+	bool hardQuit = false;
 
 	SDL_Event e;
 
@@ -148,7 +226,8 @@ void playGame() {
 	int playerWidth = SCREEN_WIDTH / 5;
 	int playerHeight = SCREEN_HEIGHT / 20;
 	int playerSpeed = 10;
-	int score = 0;
+
+	Player player = Player(playerX, playerY, playerWidth, playerHeight, playerSpeed, Black);
 	int lives = 3;
 
 
@@ -157,31 +236,28 @@ void playGame() {
 	srand(time(NULL));
 
 	Target currentTargets[] = { Target(20,3, Blue), Target(60,2, Red) , Target(100, 1, Blue), Target(140,4,Green) };
+
 	int numberOfTargets = 4;
 
 	//game loop
 
-	while (!quit) {
+	while ((!softQuit) && (!hardQuit)) {
 		frameNumber++;
 		//check for quit and other input
 		while (SDL_PollEvent(&e) != 0) {
 			if (e.type == SDL_QUIT) {
-				quit = true;
+				hardQuit = true;
 			}
 			else if (e.type == SDL_KEYDOWN) {
 				switch (e.key.keysym.sym) {
 				case SDLK_RIGHT:
-					playerX += playerSpeed;
-					if (playerX + playerWidth > SCREEN_WIDTH) {
-						playerX -= playerSpeed;
-					}
+					player.moveRight();
 					break;
 				case SDLK_LEFT:
-					playerX -= playerSpeed;
-					if (playerX < 0) {
-						playerX += playerSpeed;
-					}
+					player.moveLeft();
 					break;
+				case SDLK_BACKSPACE:
+					softQuit = true;
 				default:
 					break;
 				}
@@ -192,13 +268,11 @@ void playGame() {
 		SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
 		SDL_RenderClear(gRenderer);
 
-		displayScore(score);
-		displayLives(lives);
+		displayHUD(score, lives);
 
 		//draw and display player
 		SDL_SetRenderDrawColor(gRenderer, 0x00, 0x00, 0x00, 0xFF);
-		SDL_Rect playerRect = { playerX, playerY, playerWidth, playerHeight };
-		SDL_RenderFillRect(gRenderer, &playerRect);
+		SDL_RenderFillRect(gRenderer, &player.playerBox);
 
 		//for each target
 		for (int i = 0; i < numberOfTargets; i++) {
@@ -207,17 +281,14 @@ void playGame() {
 
 			//move target down and check if at bottom of screen
 			if (frameNumber % 100 == 0) {
-				currentTargets[i].targetBox.y += currentTargets[i].targetSpeed;
-				if (currentTargets[i].targetBox.y > playerY) {
-					currentTargets[i] = resetTarget(currentTargets[i]);
-					//currentTargets[i].setRandomColor();
-				}
+
+				currentTargets[i].moveTarget(player.playerBox.y);
+
 			}
 
 			//check collision with player
-			if (SDL_HasIntersection(&currentTargets[i].targetBox, &playerRect)) {
-
-				currentTargets[i] = resetTarget(currentTargets[i]);
+			if (SDL_HasIntersection(&currentTargets[i].targetBox, &player.playerBox)) {
+				currentTargets[i].resetTarget();
 
 				//check color
 				if (sameColor(currentTargetColor, Blue)) {
@@ -227,20 +298,18 @@ void playGame() {
 					if (score % 10 == 0) {
 						currentTargets[i].setColor(Green);
 					}
-					//else {
-						//currentTargets[i].setRandomColor();
-					//}
 
 				}
 
 				if (sameColor(currentTargetColor, Red)) {
 					lives--;
-					//currentTargets[i].setRandomColor();
+					if (lives <= 0) {
+						softQuit = true;
+					}
 				}
 
 				if (sameColor(currentTargetColor, Green)) {
 					lives++;
-					//currentTargets[i].setRandomColor();
 				}
 			}
 
@@ -251,6 +320,63 @@ void playGame() {
 		SDL_RenderPresent(gRenderer);
 
 	}
+
+	if (hardQuit) {
+		return -1;
+	}
+	if (softQuit) {
+		return 1;
+	}
+	else {
+		return 0;
+	}
+}
+
+void playMenu() {
+	bool quit = false;
+	bool wantsToPlay = false;
+	SDL_Event e1;
+
+	while (!quit) {
+		SDL_SetRenderDrawColor(gRenderer, 0xFF, 0xFF, 0xFF, 0xFF);
+		SDL_RenderClear(gRenderer);
+		displayMenuText(highScore);
+		SDL_RenderPresent(gRenderer);
+
+		while (SDL_PollEvent(&e1) != 0) {
+			if (e1.type == SDL_QUIT) {
+				quit = true;
+			}
+			else if (e1.type = SDL_KEYDOWN) {
+				switch (e1.key.keysym.sym) {
+				case SDLK_RETURN:
+					wantsToPlay = true;
+					break;
+				default:
+					break;
+				}
+				
+
+			}
+		}
+
+		if (wantsToPlay) {
+			int gameState = playGame();		
+			wantsToPlay = false;
+
+			if (gameState < 0) {
+				quit = true;
+			}
+		}
+
+		if (score > highScore) {
+			highScore = score;
+		}
+
+	}
+
+
+
 }
 
 int main(int argc, char* args[]) {
@@ -258,7 +384,7 @@ int main(int argc, char* args[]) {
 		printf("Failed to initialize!");
 	}
 	else {
-		playGame();
+		playMenu();
 
 	}
 	close();
